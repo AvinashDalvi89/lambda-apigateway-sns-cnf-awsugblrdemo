@@ -1,0 +1,5 @@
+Common error : 
+
+
+- Template format error: [/Resources/ApiGatewayRestApi] resource definition is malformed - generally syntax or not following template format
+- Unresolved resource dependencies [ApiGatewayDeployment] in the Resources block of the template

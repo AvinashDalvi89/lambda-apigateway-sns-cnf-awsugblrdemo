@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ArtifactsBucket:
+    Type: String
+    Description: The S3 bucket where the artifacts are stored
+    Default: 'awsugblr-cnf-demo'
+  LambdaArtifactsKey:
+    Type: String
+    Description: The key from the S3 Bucket with the artifacts to deploy 
+    Default: 'lambda-sample.zip'
+  FunctionName:  
+    Type: String
+    Description: Name of the function
+    Default: 'lambda-apigateway-sns-test'
+Resources:
+  LambdaApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      ApiKeySourceType: HEADER
+      Description: An API Gateway with a Lambda Integration
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      Name: lambda-api
+  LambdaApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt LambdaApiGatewayRestApi.RootResourceId
+      PathPart: 'lambda'
+      RestApiId: !Ref LambdaApiGatewayRestApi
+  LambdaApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        ConnectionType: INTERNET
+        Credentials: !GetAtt LambdaApiGatewayIamRole.Arn
+        IntegrationHttpMethod: POST
+        PassthroughBehavior: WHEN_NO_MATCH
+        TimeoutInMillis: 29000
+        Type: AWS_PROXY
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaApiGatewaySNSTest.Arn}/invocations'
+      OperationName: 'lambda'
+      ResourceId: !Ref LambdaApiGatewayResource
+      RestApiId: !Ref LambdaApiGatewayRestApi
+  LambdaApiGatewayModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      ContentType: 'application/json'
+      RestApiId: !Ref LambdaApiGatewayRestApi
+      Schema: {}
+  LambdaApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref LambdaApiGatewayDeployment
+      Description: Lambda API Stage v0
+      RestApiId: !Ref LambdaApiGatewayRestApi
+      StageName: 'v0'
+  LambdaApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: LambdaApiGatewayMethod
+    Properties:
+      Description: Lambda API Deployment
+      RestApiId: !Ref LambdaApiGatewayRestApi
+  LambdaApiGatewayIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: 'Allow'
+            Principal:
+              Service:
+                - 'apigateway.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: LambdaAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'lambda:*'
+                Resource: !GetAtt LambdaApiGatewaySNSTest.Arn
+  LambdaApiGatewaySNSTest:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: To test apigateway ans sns on OnFailure
+      Handler: index.handler
+      Runtime: nodejs12.x
+      FunctionName: !Ref FunctionName
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaArtifactsKey
+      Role: !GetAtt LambdaIamRole.Arn
+      MemorySize: 128
+      Timeout: 60
+  LambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+                - 'sns.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sns:*
+            Resource: arn:aws:sns:*:*:*
+      Path: '/'
+  LambdaEmailAlertSNSTopic: 
+    Type: AWS::SNS::Topic 
+    Properties: 
+      TopicName: lambda-apigateway-sns-test-execution
+      DisplayName: lambda-apigateway-sns-test-execution 
+      Subscription: 
+        - Endpoint: "avinashsdalvi@gmail.com" 
+          Protocol: "EMAIL-JSON"
+  LambdaEventInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+        FunctionName: !Ref LambdaApiGatewaySNSTest
+        Qualifier: "$LATEST"
+        MaximumEventAgeInSeconds: 600
+        MaximumRetryAttempts: 0
+        DestinationConfig: 
+            OnFailure:
+                Destination: !Ref LambdaEmailAlertSNSTopic
+
+        
