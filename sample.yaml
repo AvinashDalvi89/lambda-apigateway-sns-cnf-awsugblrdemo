@@ -128,7 +128,7 @@ Resources:
       TopicName: lambda-apigateway-sns-test-execution
       DisplayName: lambda-apigateway-sns-test-execution 
       Subscription: 
-        - Endpoint: "avinashsdalvi@gmail.com" 
+        - Endpoint: "example@gmail.com" 
           Protocol: "EMAIL-JSON"
   LambdaEventInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig
